@@ -37,6 +37,13 @@ template to(T)
     }
 }
 
+private auto _assumeAllAttr(T)(T t) pure nothrow @nogc
+if (isFunctionPointer!T || isDelegate!T)
+{
+    enum attrs = functionAttributes!T | FunctionAttribute.pure_ | FunctionAttribute.nogc | FunctionAttribute.nothrow_;
+    return cast(SetFunctionAttributes!(T, functionLinkage!T, attrs)) t;
+}
+
 /++
 emplaceRef is a package function for phobos internal use. It works like
 emplace, but takes its argument by ref (as opposed to "by pointer").
@@ -61,7 +68,7 @@ template emplaceRef(T)
         else static if (
             !is(T == struct) && Args.length == 1 /* primitives, enums, arrays */
             ||
-            Args.length == 1 && is(typeof({T t = args[0];})) /* conversions */
+            Args.length == 1 && __traits(compiles, (ref Args[0] a) { T t = a; }) /* conversions */
             ||
             is(typeof(T(args))) /* general constructors */)
         {
@@ -81,12 +88,16 @@ template emplaceRef(T)
             }
             if (__ctfe)
             {
-                static if (is(typeof(chunk = T(args))))
-                    chunk = T(args);
-                else static if (args.length == 1 && is(typeof(chunk = args[0])))
-                    chunk = args[0];
-                else assert(0, "CTFE emplace doesn't support "
-                    ~ T.stringof ~ " from " ~ Args.stringof);
+                static void apply(ref UT chunk, ref Args args)
+                {
+                    static if (is(typeof(chunk = T(args))))
+                        chunk = T(args);
+                    else static if (args.length == 1 && is(typeof(chunk = args[0])))
+                        chunk = args[0];
+                    else assert(0, "CTFE emplace doesn't support "
+                        ~ T.stringof ~ " from " ~ Args.stringof);
+                }
+                (()@trusted=> _assumeAllAttr(&apply)(chunk, args))();
             }
             else
             {
@@ -165,7 +176,7 @@ T* emplace(T)(T* chunk) @safe pure nothrow
 }
 
 ///
-@system unittest
+pure nothrow @nogc @system unittest
 {
     static struct S
     {
@@ -449,6 +460,7 @@ if (!is(T == class))
 version (unittest) private struct __conv_EmplaceTest
 {
     int i = 3;
+@nogc @safe pure nothrow:
     this(int i)
     {
         assert(this.i == 3 && i == 5);
@@ -614,14 +626,14 @@ version (unittest) private class __conv_EmplaceTestClass
     assert(*emplace!S(cast(S*) s1, 44, 45) == S(44, 45));
 }
 
-@system unittest
+@system pure nothrow @nogc unittest
 {
     __conv_EmplaceTest k = void;
     emplace(&k, 5);
     assert(k.i == 5);
 }
 
-@system unittest
+@system pure nothrow @nogc unittest
 {
     int var = 6;
     __conv_EmplaceTest k = void;
@@ -687,24 +699,26 @@ version (unittest) private class __conv_EmplaceTestClass
 
         this(S other){assert(false);}
         this(int i){this.i = i;}
-        this(this){}
+        this(this) @nogc @safe pure nothrow {}
+        ~this() {}
     }
     S a = void;
     assert(is(typeof({S b = a;})));    //Postblit
     assert(is(typeof({S b = S(a);}))); //Constructor
     auto b = S(5);
-    emplace(&a, b);
+    (()@nogc pure nothrow =>emplace(&a, b))();
     assert(a.i == 5);
 
     static struct S2
     {
         int* p;
-        this(const S2){}
+        this(ref const S2)  @nogc @safe pure nothrow {}
+        ~this() {}
     }
     static assert(!is(immutable S2 : S2));
     S2 s2 = void;
     immutable is2 = (immutable S2).init;
-    emplace(&s2, is2);
+    (()@nogc pure nothrow =>emplace(&s2, is2))();
 }
 
 //nested structs and postblit
