@@ -49,7 +49,12 @@ mir_core_src = [
 lib_type = get_option('default_library')
 if lib_type == 'shared' 
     mir_core_soname = 'lib@0@.so.@1@'.format(meson.project_name(), major_version)
-    common_ldflags += ['-shared', '-soname', mir_core_soname ]
+    common_ldflags += ['-shared']
+
+    if dc.get_id() == 'llvm'
+        common_ldflags += [ '-soname', mir_core_soname ]
+    endif
+
 endif
 
 mir_core_lib = library(meson.project_name(),
