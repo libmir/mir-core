@@ -367,3 +367,28 @@ unittest
     auto a = [1, 2];
     assert(a is a.save);
 }
+
+/++
+Returns: `true` if `R` has a `elementCount` member that returns an
+integral type implicitly convertible to `size_t`.
+
+`R` does not have to be a range.
++/
+enum bool hasElementCount(R) = is(typeof(
+(const R r, inout int = 0)
+{
+    size_t l = r.elementCount;
+}));
+
+///
+@safe version(mir_test) unittest
+{
+    static assert(hasElementCount!(char[]));
+    static assert(hasElementCount!(int[]));
+    static assert(hasElementCount!(inout(int)[]));
+
+    struct B { size_t elementCount() const { return 0; } }
+    struct C { @property size_t elementCount() const { return 0; } }
+    static assert(hasElementCount!(B));
+    static assert(hasElementCount!(C));
+}
