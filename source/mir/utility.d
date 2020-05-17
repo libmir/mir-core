@@ -403,11 +403,10 @@ private ulong divmod128by64(const ulong u1, const ulong u0, ulong v, out ulong r
 {
     const ulong b = 1L << 32;
     ulong un1, un0, vn1, vn0, q1, q0, un32, un21, un10, rhat, left, right;
-    size_t s;
 
     import mir.bitop;
 
-    s = ctlz(v);
+    auto s = ctlz(v);
     v <<= s;
     vn1 = v >> 32;
     vn0 = v & 0xffffffff;
