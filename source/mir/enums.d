@@ -206,7 +206,7 @@ unittest
 
 /++
 Params:
-    enum index `std.traits.EnumMembers!T`
+    index  = enum index `std.traits.EnumMembers!T`
 Returns:
     A enum value that corresponds to the index.
 Note:
