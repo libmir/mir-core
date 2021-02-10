@@ -610,3 +610,27 @@ version(mir_core_test) unittest
     catch (AssertError ae)
     { assert(ae.msg.canFind("Value is smaller than the minimum value of bitfield 'b'"), ae.msg); }
 }
+
+@system version(mir_core_test) unittest
+{
+    import core.atomic : atomicStore, atomicLoad, MO = MemoryOrder;
+
+    static struct S
+    {
+        mixin(taggedPointer!(
+            shared(int)*, "si",
+            bool, "f", 1));
+
+        this(shared(int)* ptr, bool flag)
+        {
+            si = ptr;
+            f = flag;
+        }
+    }
+
+    shared static S s;
+    shared static int i;
+
+    s.atomicStore!(MO.raw)(S(&i, true));
+    assert(s.atomicLoad!(MO.raw) == S(&i, true));
+}
