@@ -157,25 +157,33 @@ private ulong getBitsForAlign()(ulong a)
 
 private template createReferenceAccessor(string store, T, ulong bits, string name)
 {
-    enum storage = "private void* " ~ store ~ "_ptr;\n";
+    import std.traits : CopyTypeQualifiers, PointerTarget;
+
+    static if (is(T == class))
+        alias Q = T;
+    else
+        alias Q = PointerTarget!T;
+
+    enum storageType = (CopyTypeQualifiers!(Q, void)*).stringof;
+    enum storage = "private " ~ storageType ~ ' ' ~ store ~ "_ptr;\n";
     enum storage_accessor = "@property ref size_t " ~ store ~ "()() return @trusted pure nothrow @nogc const { "
         ~ "return *cast(size_t*) &" ~ store ~ "_ptr;}\n"
         ~ "@property void " ~ store ~ "()(size_t v) @trusted pure nothrow @nogc { "
-        ~ "" ~ store ~ "_ptr = cast(void*) v;}\n";
+        ~ "" ~ store ~ "_ptr = cast(" ~ storageType ~ ") v;}\n";
 
     enum mask = (1UL << bits) - 1;
     enum maskInv = ~mask;
     // getter
     enum ref_accessor = "@property "~T.stringof~" "~name~"()() @trusted pure nothrow @nogc const { auto result = "
         ~ "("~store~" & "~ maskInv.stringof ~"); "
-        ~ "return cast("~T.stringof~") cast(void*) result;}\n"
+        ~ "return cast("~T.stringof~") cast(" ~ storageType ~ ") result;}\n"
     // setter
         ~"@property void "~name~"()("~T.stringof~" v) @trusted pure nothrow @nogc { "
-        ~"assert(((cast(typeof("~store~")) cast(void*) v) & "~ mask.stringof 
+        ~"assert(((cast(typeof("~store~")) cast(" ~ storageType ~ ") v) & "~ mask.stringof
         ~`) == 0, "Value not properly aligned for '`~name~`'"); `
         ~store~" = cast(typeof("~store~"))"
         ~" (("~store~" & (cast(typeof("~store~")) "~ mask.stringof ~"))"
-        ~" | ((cast(typeof("~store~")) cast(void*) v) & (cast(typeof("~store~")) "~ maskInv.stringof ~")));}\n";
+        ~" | ((cast(typeof("~store~")) cast(" ~ storageType ~ ") v) & (cast(typeof("~store~")) "~ maskInv.stringof ~")));}\n";
 
     enum result = storage ~ storage_accessor ~ ref_accessor;
 }
