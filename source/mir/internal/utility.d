@@ -18,17 +18,21 @@ template Iota(size_t i, size_t j)
 
 ///
 template realType(C)
-    if (__traits(isFloating, C) || isComplex!C)
+    if (__traits(isFloating, C) && !isComplex!C)
 {
     import std.traits: Unqual;
-    static if (isComplex!C)
-        alias realType = typeof(Unqual!C.init.re);
-    else
-        alias realType = Unqual!C;
+    alias realType = Unqual!C;
 }
 
-///
-template isComplex(C)
+deprecated("Use of complex types is deprecated. Use std.complex")
+template realType(C)
+    if (isComplex!C)
+{
+    import std.traits: Unqual;
+    alias realType = typeof(Unqual!C.init.re);
+}
+
+deprecated template isComplex(C)
 {
     import std.traits: Unqual;
     alias U = Unqual!C;
