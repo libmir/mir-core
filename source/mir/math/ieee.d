@@ -137,7 +137,7 @@ int feqrel(T)(const T x, const T y) @trusted pure nothrow @nogc
             || realFormat == RealFormat.ieeeExtended
             || realFormat == RealFormat.ieeeQuadruple)
     {
-        import mir.math.common: fabs;
+        import mir.math.common; //: fabs // Not a selective import due to issue 21832
 
         if (x == y)
             return T.mant_dig; // ensure diff != 0, cope with IN
@@ -725,7 +725,7 @@ T frexp(T)(const T value, ref int exp) @trusted pure nothrow @nogc
 if (isFloatingPoint!T)
 {
     import mir.utility: _expect;
-    import mir.math.common: fabs;
+    import mir.math.common; //: fabs // Not a selective import due to issue 21832
 
     if (__ctfe)
     {

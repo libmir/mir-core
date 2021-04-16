@@ -32,7 +32,9 @@ template realType(C)
     alias realType = typeof(Unqual!C.init.re);
 }
 
-deprecated template isComplex(C)
+// Should be 'deprecated', but blocked by issue 21831.
+// Instead, this is explicitly undocumented.
+template isComplex(C)
 {
     import std.traits: Unqual;
     alias U = Unqual!C;

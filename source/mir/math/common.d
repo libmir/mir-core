@@ -8,8 +8,7 @@ Authors:   Ilya Yaroshenko, Phobos Team
 +/
 module mir.math.common;
 
-import mir.internal.utility: isFloatingPoint;
-deprecated import mir.internal.utility: isComplex;
+import mir.internal.utility: isComplex, isFloatingPoint;
 
 version(LDC)
 {
@@ -560,11 +559,14 @@ version (mir_core_test)
     assert(feqrel(pow(2.0L, -0.5L), cos(PI / 4)) >= real.mant_dig - 1);
 }
 
-deprecated("Use of complex types is deprecated. Use std.complex")
-auto fabs(T)(in T x)
-    if (isComplex!T)
+static if (true) // Workaround issue 21830
 {
-    return x.re * x.re + x.im * x.im;
+    deprecated("Use of complex types is deprecated. Use std.complex")
+    auto fabs(T)(in T x)
+        if (isComplex!T)
+    {
+        return x.re * x.re + x.im * x.im;
+    }
 }
 
 version(mir_core_test) deprecated unittest
