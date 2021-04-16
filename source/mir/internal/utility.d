@@ -30,8 +30,6 @@ template realType(C)
 ///
 template isComplex(C)
 {
-    import std.traits: Unqual, Fields;
-    // static if (hasField!)
     static if (is(C == struct) || is(C == enum))
     {
         static if (hasField!(C, "re") && hasField!(C, "im") && C.init.tupleof.length == 2)
