@@ -59,7 +59,7 @@ enum hasToHash(T) = __traits(hasMember, T, "toHash");
 static if (__VERSION__ < 2094)
     enum isCopyable(S) = is(typeof({ S foo = S.init; S copy = foo; }));
 else
-    enum isCopyable(S) = __traits(isCopyable, S); 
+    enum isCopyable(S) = __traits(isCopyable, S);
 enum isPOD(T) = __traits(isPOD, T);
 enum Sizeof(T) = T.sizeof;
 
@@ -81,20 +81,14 @@ enum hasSemiMutableConstruction(T) = __traits(compiles, {static struct S { T a; 
     static assert(hasInoutConstruction!S);
 }
 
-template staticIsSorted(alias cmp, Seq...)
-{
-    static if (Seq.length <= 1)
-        enum staticIsSorted = true;
-    else static if (Seq.length == 2)
-        enum staticIsSorted = cmp!(Seq[0], Seq[1]);
-    else
+enum staticIsSorted(alias cmp, items...) =
     {
-        enum staticIsSorted =
-            cmp!(Seq[($ / 2) - 1], Seq[$ / 2]) &&
-            staticIsSorted!(cmp, Seq[0 .. $ / 2]) &&
-            staticIsSorted!(cmp, Seq[$ / 2 .. $]);
-    }
-}
+        static if (items.length > 1)
+            static foreach (i, item; items[1 .. $])
+                static if (!cmp!(items[i], item))
+                    if (__ctfe) return false;
+        return true;
+    }();
 
 template TryRemoveConst(T)
 {
@@ -134,55 +128,24 @@ version(mir_core_test) unittest
 }
 
 
-// taken from std.meta.allSatisfy
-template allSatisfy(alias F, T...)
+// taken from core.internal.traits
+enum allSatisfy(alias pred, items...) =
 {
-    static foreach (Ti; T)
-    {
-        static if (!is(typeof(allSatisfy) == bool) && // not yet defined
-                   !F!(Ti))
-        {
-            enum allSatisfy = false;
-        }
-    }
-    static if (!is(typeof(allSatisfy) == bool)) // if not yet defined
-    {
-        enum allSatisfy = true;
-    }
-}
+    static foreach (item; items)
+        static if (!pred!item)
+            if (__ctfe) return false;
+    return true;
+}();
 
-template Erase(T, TList...)
-{
-    alias Erase = GenericErase!(T, TList).result;
-}
-
-template Erase(alias T, TList...)
-{
-    alias Erase = GenericErase!(T, TList).result;
-}
-
-template GenericErase(args...)
+template Erase(args...)
 if (args.length >= 1)
 {
-    import std.meta: AliasSeq;
-
-    alias e     = OldAlias!(args[0]);
-    alias tuple = args[1 .. $] ;
-
-    static if (tuple.length)
-    {
-        alias head = OldAlias!(tuple[0]);
-        alias tail = tuple[1 .. $];
-
-        static if (isSame!(e, head))
-            alias result = tail;
-        else
-            alias result = AliasSeq!(head, GenericErase!(e, tail).result);
-    }
+    import std.meta: staticIndexOf, AliasSeq;
+    private enum pos = staticIndexOf!(args[0], args[1 .. $]);
+    static if (pos < 0)
+        alias Erase = args[1 .. $];
     else
-    {
-        alias result = AliasSeq!();
-    }
+        alias Erase = AliasSeq!(args[1 .. pos + 1], args[pos + 2 .. $]);
 }
 
 template Pack(T...)
@@ -191,43 +154,14 @@ template Pack(T...)
     enum equals(U...) = isSame!(Pack!T, Pack!U);
 }
 
-
-template EraseAll(T, TList...)
-{
-    alias EraseAll = GenericEraseAll!(T, TList).result;
-}
-
-template EraseAll(alias T, TList...)
-{
-    alias EraseAll = GenericEraseAll!(T, TList).result;
-}
-
-template GenericEraseAll(args...)
+template EraseAll(args...)
 if (args.length >= 1)
 {
     import std.meta: AliasSeq;
-
-    alias e     = OldAlias!(args[0]);
-    alias tuple = args[1 .. $];
-
-    static if (tuple.length)
-    {
-        alias head = OldAlias!(tuple[0]);
-        alias tail = tuple[1 .. $];
-        alias next = AliasSeq!(
-            GenericEraseAll!(e, tail[0..$/2]).result,
-            GenericEraseAll!(e, tail[$/2..$]).result
-            );
-
-        static if (isSame!(e, head))
-            alias result = next;
-        else
-            alias result = AliasSeq!(head, next);
-    }
-    else
-    {
-        alias result = AliasSeq!();
-    }
+    alias EraseAll = AliasSeq!();
+    static foreach (arg; args[1 .. $])
+        static if (!isSame!(args[0], arg))
+            EraseAll = AliasSeq!(EraseAll, arg);
 }
 
 template OldAlias(T)
@@ -257,40 +191,40 @@ template EraseAllN(uint N, TList...)
     }
 }
 
-template NoDuplicates(TList...)
+private template AppendUnique(items...)
 {
-    static if (TList.length >= 2)
-    {
-        import std.meta: AliasSeq;
+    import std.meta: staticIndexOf;
+    alias head = items[0 .. $ - 1];
+    static if (staticIndexOf!(items[$ - 1], head) >= 0)
+        alias AppendUnique = head;
+    else
+        alias AppendUnique = items;
+}
 
-        alias fst = NoDuplicates!(TList[0 .. $/2]);
-        alias snd = NoDuplicates!(TList[$/2 .. $]);
-        alias NoDuplicates = AliasSeq!(fst, EraseAllN!(fst.length, fst, snd));
+template NoDuplicates(args...)
+{
+    import std.meta: staticIndexOf, AliasSeq;
+    alias NoDuplicates = AliasSeq!();
+    static foreach (arg; args)
+        NoDuplicates = AppendUnique!(NoDuplicates, arg);
+}
+
+private template isSame(alias a, alias b)
+{
+    static if (!is(typeof(&a && &b)) // at least one is an rvalue
+            && __traits(compiles, { enum isSame = a == b; })) // c-t comparable
+    {
+        enum isSame = a == b;
     }
     else
     {
-        alias NoDuplicates = TList;
+        enum isSame = __traits(isSame, a, b);
     }
 }
 
-
-template isSame(ab...)
-if (ab.length == 2)
+private template isSame(A, B)
 {
-    static if (is(ab[0]) && is(ab[1]))
-    {
-        enum isSame = is(ab[0] == ab[1]);
-    }
-    else static if (!is(ab[0]) && !is(ab[1]) &&
-                    !(is(typeof(&ab[0])) && is(typeof(&ab[1]))) &&
-                     __traits(compiles, { enum isSame = ab[0] == ab[1]; }))
-    {
-        enum isSame = (ab[0] == ab[1]);
-    }
-    else
-    {
-        enum isSame = __traits(isSame, ab[0], ab[1]);
-    }
+    enum isSame = is(A == B);
 }
 
 template Mod(From, To)
