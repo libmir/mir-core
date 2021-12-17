@@ -67,7 +67,7 @@ $(T2 ValueTypeOfNullable, Gets type of $(LI $(LREF .Algebraic.get.2)) method. )
 
 
 $(H3 Type Set)
-$(UL 
+$(UL
 $(LI $(LREF TaggedTypeSet) is supported. Example:`TargetTypeSet!(["integer", "floating"], int, double)`).
 $(LI Type set is unordered. Example:`TypeSet!(int, double)` and `TypeSet!(double, int)` are the same. )
 $(LI Duplicats are ignored. Example: `TypeSet!(float, int, float)` and `TypeSet!(int, float)` are the same. )
@@ -78,7 +78,7 @@ $(LI Empty `TypeSet!()` is allowed.)
 )
 
 $(H3 Visitors)
-$(UL 
+$(UL
 $(LI Visitors are allowed to return values of different types If there are more then one return type then the an $(LREF Algebraic) type is returned. )
 $(LI Visitors are allowed to accept additional arguments. The arguments can be passed to the visitor handler. )
 $(LI Multiple visitors can be passes to the visitor handler. )
@@ -89,7 +89,7 @@ $(LI If the visitors arguments has known types, then such visitors should be pas
 )
 
 $(H3 Implementation Features)
-$(UL 
+$(UL
 $(LI BetterC support. Runtime `TypeInfo` is not used.)
 $(LI Copy-constructors and postblit constructors are supported. )
 $(LI `toHash`, `opCmp`. `opEquals`, and `toString` support. )
@@ -253,7 +253,7 @@ $(LUCKY self-referential data structures), i.e. structures that embed references
 values of their own type within.
 This is achieved with $(LREF Variant) by using $(LREF This) as a placeholder whenever a
 reference to the type being defined is needed. The $(LREF Variant) instantiation
-will perform 
+will perform
 $(LINK2 https://en.wikipedia.org/wiki/Name_resolution_(programming_languages)#Alpha_renaming_to_make_name_resolution_trivial,
 alpha renaming) on its constituent types, replacing $(LREF This)
 with the self-referenced type. The structure of the type involving $(LREF This) may
@@ -405,7 +405,7 @@ Compatible with BetterC mode.
 alias Variant(T...) = Algebraic!(TypeSet!T);
 
 ///
-@safe pure @nogc 
+@safe pure @nogc
 version(mir_core_test) unittest
 {
     Variant!(int, double, string) v = 5;
@@ -418,8 +418,8 @@ version(mir_core_test) unittest
 
 /// Single argument Variant
 // and Type with copy constructor
-@safe pure nothrow @nogc 
-version(mir_core_test) unittest 
+@safe pure nothrow @nogc
+version(mir_core_test) unittest
 {
     static struct S
     {
@@ -439,7 +439,7 @@ version(mir_core_test) unittest
 }
 
 /// Empty type set
-@safe pure nothrow @nogc version(mir_core_test) unittest 
+@safe pure nothrow @nogc version(mir_core_test) unittest
 {
     Variant!() a;
     auto b = a;
@@ -450,13 +450,13 @@ version(mir_core_test) unittest
 }
 
 /// Small types
-@safe pure nothrow @nogc version(mir_core_test) unittest 
+@safe pure nothrow @nogc version(mir_core_test) unittest
 {
     struct S { ubyte d; }
     static assert(Nullable!(byte, char, S).sizeof == 2);
 }
 
-@safe pure nothrow @nogc version(mir_core_test) unittest 
+@safe pure nothrow @nogc version(mir_core_test) unittest
 {
     struct S { ubyte[3] d; }
     static assert(Nullable!(ushort, wchar, S).sizeof == 6);
@@ -516,7 +516,7 @@ template TaggedVariant(T)
 }
 
 /// Json Value
-@safe pure 
+@safe pure
 version(mir_core_test) unittest
 {
     static union JsonUnion
@@ -535,7 +535,7 @@ version(mir_core_test) unittest
     // typeof(null) has priority
     static assert(JsonValue.Kind.init == JsonValue.Kind.null_);
     static assert(JsonValue.Kind.null_ == 0);
-    
+
     // Kind and AllowedTypes has the same order
     static assert (is(JsonValue.AllowedTypes[JsonValue.Kind.array] == JsonValue[]));
     static assert (is(JsonValue.AllowedTypes[JsonValue.Kind.boolean] == bool));
@@ -573,7 +573,7 @@ version(mir_core_test) unittest
 }
 
 /// Wrapped algebraic with propogated primitives
-@safe pure 
+@safe pure
 version(mir_core_test) unittest
 {
     static struct Response
@@ -610,7 +610,7 @@ alias Nullable(T...) = Variant!(typeof(null), T);
 ----
 
 In additional to common algebraic API the following members can be accesssed:
-$(UL 
+$(UL
 $(LI $(LREF .Algebraic.isNull))
 $(LI $(LREF .Algebraic.nullify))
 $(LI $(LREF .Algebraic.get.2))
@@ -634,7 +634,7 @@ Single type `Nullable`
 version(mir_core_test) unittest
 {
     static assert(is(Nullable!int == Variant!(typeof(null), int)));
-    
+
     Nullable!int a = 5;
     assert(a.get!int == 5);
 
@@ -652,7 +652,7 @@ version(mir_core_test) unittest
 }
 
 /// Empty nullable type set support
-@safe pure nothrow @nogc version(mir_core_test) unittest 
+@safe pure nothrow @nogc version(mir_core_test) unittest
 {
     Nullable!() a;
     auto b = a;
@@ -753,7 +753,7 @@ struct Algebraic(_Types...)
             private alias _ID_ = uint;
         else
             private alias _ID_ = ulong;
-    
+
         _ID_ _identifier_;
     }
     else
@@ -1087,6 +1087,28 @@ struct Algebraic(_Types...)
             }
         }
     }
+    /// ditto
+    bool opEquals()(auto ref immutable typeof(this) rhs) const @trusted
+    {
+        static if (AllowedTypes.length == 0)
+        {
+            return true;
+        }
+        else
+        {
+            if (this._identifier_ != rhs._identifier_)
+                return false;
+            switch (_identifier_)
+            {
+                static foreach (i, T; AllowedTypes)
+                {
+                    case i:
+                        return this.trustedGet!T == rhs.trustedGet!T;
+                }
+                default: assert(0);
+            }
+        }
+    }
 
     /++
     +/
@@ -1247,13 +1269,13 @@ struct Algebraic(_Types...)
             Gets the value if not null. If `this` is in the null state, and the optional
             parameter `fallback` was provided, it will be returned. Without `fallback`,
             calling `get` with a null state is invalid.
-        
+
             When the fallback type is different from the Nullable type, `get(T)` returns
             the common type.
-        
+
             Params:
                 fallback = the value to return in case the `Nullable` is null.
-        
+
             Returns:
                 The value held internally by this `Nullable`.
             +/
@@ -1711,7 +1733,7 @@ struct Algebraic(_Types...)
                     if (_identifier_ != i)
                         return false;
                 return trustedGet!T == rhs;
-            } 
+            }
 
             /++
             +/
@@ -1762,7 +1784,7 @@ struct Algebraic(_Types...)
                     auto opEquals()(int rhs) const
                     {
                         return opEquals(long(rhs));
-                    } 
+                    }
 
                     auto opCmp()(int rhs) const
                     {
@@ -1795,7 +1817,7 @@ struct Algebraic(_Types...)
                     auto opEquals()(uint rhs) const
                     {
                         return opEquals(ulong(rhs));
-                    } 
+                    }
 
                     auto opCmp()(uint rhs) const
                     {
@@ -1820,7 +1842,7 @@ unittest
 
     static class C
     {
-        // alias this members are supported 
+        // alias this members are supported
         Base base;
         alias base this;
 
@@ -1848,7 +1870,7 @@ unittest
 
         double retArg(double v) { return v; }
 
-        // alias this members are supported 
+        // alias this members are supported
         Base base;
         alias base this;
     }
@@ -1866,7 +1888,7 @@ unittest
     assert(v.a == 3);
     v.b = "s";
     assert(v.b == "s");
-    // alias this members are supported 
+    // alias this members are supported
     v.d = 10;
     assert(v.d == 10);
     // method call support
@@ -1882,7 +1904,7 @@ unittest
     assert(v.a == 6);
     v.b = "s";
     assert(v.b == "s");
-    // alias this members are supported 
+    // alias this members are supported
     v.d = 15;
     assert(v.d == 15);
     // method call support
@@ -2192,6 +2214,9 @@ version(mir_core_test) unittest
     assert(y.isNull);
     assert(z.isNull);
     assert(z == y);
+
+    immutable iy = y;
+    assert(z == iy);
 }
 
 /++
@@ -2375,7 +2400,7 @@ unittest
 
     alias collideWith = tryMatch!(
         (Asteroid x, Asteroid y) => "a/a",
-        // No visitor for A/S pair 
+        // No visitor for A/S pair
         // (Asteroid x, Spaceship y) => "a/s",
         (Spaceship x, Asteroid y) => "s/a",
         (Spaceship x, Spaceship y) => "s/s",
@@ -2451,7 +2476,7 @@ unittest
 
     alias collideWith = optionalMatch!(
         (Asteroid x, Asteroid y) => "a/a",
-        // No visitor for A/S pair 
+        // No visitor for A/S pair
         // (Asteroid x, Spaceship y) => "a/s",
         (Spaceship x, Asteroid y) => "s/a",
         (Spaceship x, Spaceship y) => "s/s",
@@ -2494,7 +2519,7 @@ unittest
     assert(collide(os, es) == "big-boom");
     assert(collide(os, os) == "big-boom");
 
-    // check types  
+    // check types
 
     static assert(!__traits(compiles, collide(Asteroid.init, Spaceship.init)));
     static assert(is(typeof(collideWith(Asteroid.init, Spaceship.init)) == Nullable!()));
@@ -2527,7 +2552,7 @@ unittest
 
     alias collideWith = autoMatch!(
         (Asteroid x, Asteroid y) => "a/a",
-        // No visitor for A/S pair 
+        // No visitor for A/S pair
         // (Asteroid x, Spaceship y) => "a/s",
         (Spaceship x, Asteroid y) => "s/a",
         (Spaceship x, Spaceship y) => "s/s",
@@ -2570,7 +2595,7 @@ unittest
     assert(collide(os, es) == "big-boom");
     assert(collide(os, os) == "big-boom");
 
-    // check types  
+    // check types
 
     static assert(!__traits(compiles, collide(Asteroid.init, Spaceship.init)));
     static assert(is(typeof(collideWith(Asteroid.init, Spaceship.init)) == Nullable!()));
