@@ -748,7 +748,7 @@ private template Deserializable(T, string member)
     static if (!isPublic!(T, member))
         enum Deserializable = false;
     else
-    static if (isReadableAndWritable!(T, member))
+    static if (isReadable/*AndWritable*/!(T, member))
         enum Deserializable = true;
     else
     static if (getSetters!(T, member).length == 1)
