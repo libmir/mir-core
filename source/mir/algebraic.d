@@ -155,7 +155,8 @@ private static struct _Void()
 /++
 Checks if the type is instance of $(LREF Algebraic).
 +/
-enum bool isVariant(T) = is(immutable T == immutable Algebraic!Types, Types...);
+enum bool isVariant(T) = !is(immutable T == immutable noreturn)
+    && is(immutable T : immutable Algebraic!Types, Types...);
 
 ///
 @safe pure version(mir_core_test) unittest
@@ -184,7 +185,8 @@ enum bool isTaggedVariant(T) = isVariant!T && is(T.Kind == enum);
 /++
 Checks if the type is instance of $(LREF Algebraic) with a self $(LREF TypeSet) that contains `typeof(null)`.
 +/
-enum bool isNullable(T) = is(immutable T == immutable Algebraic!(typeof(null), Types), Types...);
+enum bool isNullable(T) = !is(immutable T == immutable noreturn)
+    && is(immutable T : immutable Algebraic!(typeof(null), Types), Types...);
 
 ///
 @safe pure version(mir_core_test) unittest
