@@ -772,7 +772,7 @@ struct Algebraic(_Types...)
     Allowed types list
     See_also: $(LREF TypeSet)
     +/
-    alias AllowedTypes = AliasSeq!(ReplaceTypeUnless!(isLikeVariant, This, Algebraic!_Types, _UntaggedThisTypeSetList));
+    alias AllowedTypes = AliasSeq!(ReplaceTypeUnless!(isVariant, This, Algebraic!_Types, _UntaggedThisTypeSetList));
 
     version(mir_core_test)
     static if (_variant_test_)
