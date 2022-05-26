@@ -155,8 +155,7 @@ private static struct _Void()
 /++
 Checks if the type is instance of $(LREF Algebraic).
 +/
-enum bool isVariant(T) = !is(immutable T == immutable noreturn)
-    && is(immutable T : immutable Algebraic!Types, Types...);
+enum bool isVariant(T) = is(immutable T == immutable Algebraic!Types, Types...);
 
 ///
 @safe pure version(mir_core_test) unittest
@@ -165,6 +164,47 @@ enum bool isVariant(T) = !is(immutable T == immutable noreturn)
     static assert(isVariant!(const Variant!(int[], string)));
     static assert(isVariant!(Nullable!(int, string)));
     static assert(!isVariant!int);
+}
+
+/++
+Same as $(LREF isVariant), but matches for `alias this` variant types (requires
+DMD FE 2.100.0 or later)
++/
+enum bool isLikeVariant(T) = !is(immutable T == immutable noreturn)
+    && is(immutable T : immutable Algebraic!Types, Types...);
+
+
+static if (__VERSION__ >= 2_100)
+{
+    ///
+    @safe pure version(mir_core_test) unittest
+    {
+        struct CustomVariant
+        {
+            Variant!(int, string) data;
+            alias data this;
+            this(T)(T v) { data = v; }
+            ref typeof(this) opAssign(T)(T v)
+            {
+                data = v;
+                return this;
+            }
+        }
+        
+        static assert(isLikeVariant!(Variant!(int, string)));
+        static assert(isLikeVariant!(const Variant!(int[], string)));
+        static assert(isLikeVariant!(Nullable!(int, string)));
+        static assert(!isLikeVariant!int);
+        
+        static assert(!isVariant!CustomVariant);
+        static assert(isLikeVariant!CustomVariant);
+        
+        CustomVariant customVariant = 5;
+        assert(customVariant.match!(
+            (string s) => false,
+            (int n) => true
+        ));
+    }
 }
 
 /++
@@ -183,10 +223,17 @@ enum bool isTaggedVariant(T) = isVariant!T && is(T.Kind == enum);
 }
 
 /++
+Same as $(LREF isTaggedVariant), but with support for custom `alias this`
+variants.
+
+Only works since DMD FE 2.100, see $(LREF isLikeVariant).
++/
+enum bool isLikeTaggedVariant(T) = isLikeVariant!T && is(T.Kind == enum);
+
+/++
 Checks if the type is instance of $(LREF Algebraic) with a self $(LREF TypeSet) that contains `typeof(null)`.
 +/
-enum bool isNullable(T) = !is(immutable T == immutable noreturn)
-    && is(immutable T : immutable Algebraic!(typeof(null), Types), Types...);
+enum bool isNullable(T) = is(immutable T == immutable Algebraic!(typeof(null), Types), Types...);
 
 ///
 @safe pure version(mir_core_test) unittest
@@ -199,6 +246,14 @@ enum bool isNullable(T) = !is(immutable T == immutable noreturn)
     static assert(!isNullable!int);
     static assert(!isNullable!string);
 }
+
+/++
+Same as $(LREF isNullable), but with support for custom `alias this` variants.
+
+Only works since DMD FE 2.100, see $(LREF isLikeVariant).
++/
+enum bool isLikeNullable(T) = !is(immutable T == immutable noreturn)
+    && is(immutable T : immutable Algebraic!(typeof(null), Types), Types...);
 
 /++
 Gets type of $(LI $(LREF .Algebraic.get.2)) method.
@@ -2987,7 +3042,7 @@ template visitImpl(alias visitor, Exhaustive exhaustive, bool fused, alias Filte
         import std.meta: anySatisfy, staticMap, AliasSeq;
         import core.lifetime: forward;
 
-        static if (!anySatisfy!(isVariant, Args))
+        static if (!anySatisfy!(isLikeVariant, Args))
         {
             static if (exhaustive == Exhaustive.compileTime)
             {
@@ -3021,19 +3076,19 @@ template visitImpl(alias visitor, Exhaustive exhaustive, bool fused, alias Filte
             static assert(0, "not implemented");
         }
         else
-        static if (!isVariant!(Args[0]))
+        static if (!isLikeVariant!(Args[0]))
         {
             return .visitImpl!(nextVisitor!(visitor, args[0]), exhaustive, fused)(forward!(args[1 .. $]));
         }
         else
         {
-            static if (fused && anySatisfy!(isVariant, Args[1 .. $]))
+            static if (fused && anySatisfy!(isLikeVariant, Args[1 .. $]))
             {
                 alias fun = visitThis!(visitor, exhaustive);
             }
             else
             {
-                static assert (isVariant!(Args[0]), "First argument should be a Mir Algebraic type");
+                static assert (isLikeVariant!(Args[0]), "First argument should be a Mir Algebraic type");
                 alias fun = visitLast!visitor;
             }
 
@@ -3042,7 +3097,7 @@ template visitImpl(alias visitor, Exhaustive exhaustive, bool fused, alias Filte
                 static if (__traits(compiles, fun!T(forward!args)))
                 {
                     alias R = typeof(fun!T(forward!args));
-                    static if (fused && isVariant!R)
+                    static if (fused && isLikeVariant!R)
                         alias VariantReturnTypesImpl = staticMap!(TryRemoveConst, R.AllowedTypes);
                     else
                     static if (is(immutable R == immutable noreturn))
