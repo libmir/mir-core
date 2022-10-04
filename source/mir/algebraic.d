@@ -1354,7 +1354,7 @@ struct Algebraic(T__...)
         return hash;
     }
     else
-    size_t toHash() scope @trusted const
+    size_t toHash() const scope @trusted nothrow
     {
         size_t hash;
 
