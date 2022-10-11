@@ -52,9 +52,14 @@ public import core.lifetime : forward;
 /++
 Constructs static array.
 +/
-T[N] staticArray(T, size_t N)(T[N] a...)
-{
-    return a;
+T[N] staticArray(T, size_t N)(T[N] a...) {
+    import std.traits: isDynamicArray;
+    static if (isDynamicArray!T) {        
+        T[N] ret;
+        static foreach(i; 0..a.length) ret[i] = a[i];
+        return ret;
+    }
+    else return a;
 }
 
 /++
