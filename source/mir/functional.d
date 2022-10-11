@@ -64,7 +64,7 @@ T[N] staticArray(T, size_t N)(T[N] a...) {
 
 @safe version(mir_core_test) unittest
 {
-    string[2] v = ["AA", "BV"];
+    string[2] v = ["AA", "BB"];
     auto res = staticArray(v);
     assert(res == v);
 }
