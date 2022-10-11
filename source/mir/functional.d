@@ -54,12 +54,19 @@ Constructs static array.
 +/
 T[N] staticArray(T, size_t N)(T[N] a...) {
     import std.traits: isDynamicArray;
-    static if (isDynamicArray!T) {        
+    static if (isDynamicArray!T) {  
         T[N] ret;
         static foreach(i; 0..a.length) ret[i] = a[i];
         return ret;
     }
     else return a;
+}
+
+@safe version(mir_core_test) unittest
+{
+    string[2] v = ["AA", "BV"];
+    auto res = staticArray(v);
+    assert(res == v);
 }
 
 /++
