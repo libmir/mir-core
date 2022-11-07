@@ -56,7 +56,7 @@ private template isDesiredUDA(alias attribute)
 
 template memberTypeOf(T, string member)
 {
-    T* aggregate;
+    private __gshared T* aggregate;
     alias memberTypeOf = typeof(__traits(getMember, aggregate, member));
 }
 
@@ -77,7 +77,7 @@ template AllMembersRec(T)
     {
         static if (__traits(getAliasThis, T).length)
         {
-            T* aggregate;
+            private __gshared T* aggregate;
             static if (is(typeof(__traits(getMember, aggregate, __traits(getAliasThis, T)))))
             {
                 import std.meta: Filter, AliasSeq;
