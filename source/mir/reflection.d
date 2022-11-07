@@ -804,7 +804,7 @@ private template SerdeFieldsAndPropertiesImpl(T)
     alias isProperty = ApplyLeft!(.isProperty, T);
     alias hasField = ApplyLeft!(.hasField, T);
     alias isOriginalMember = ApplyLeft!(.isOriginalMember, T);
-    T* aggregate;
+    private __gshared T* aggregate;
     template hasReflectSerde(string member)
     {
         static if (is(typeof(__traits(getMember, *aggregate, member))))

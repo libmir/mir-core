@@ -13,7 +13,7 @@ module mir.internal.meta;
 template getUDAs(T, string member, alias attribute)
 {
     import std.meta : Filter, AliasSeq;
-    T* aggregate;
+    private __gshared T* aggregate;
     static if (__traits(compiles, __traits(getAttributes, __traits(getMember, *aggregate, member))))
         alias getUDAs = Filter!(isDesiredUDA!attribute, __traits(getAttributes, __traits(getMember, *aggregate, member)));
     else
