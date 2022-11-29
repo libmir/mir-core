@@ -850,26 +850,31 @@ private template isReadableAndWritable(T, string member)
 
 package template isPublic(T, string member)
 {
-    private __gshared T* aggregate;
-    static if (__traits(compiles, { auto _ = __traits(getProtection, __traits(getMember, *aggregate, member)); }))
-        enum bool isPublic = !__traits(getProtection, __traits(getMember, *aggregate, member)).privateOrPackage;
-    else
-        enum bool isPublic = false;
+	private __gshared T* aggregate;
+	static if (is(typeof(__traits(getMember, *aggregate, name).offsetof))) // non-static `member`
+	    enum bool isPublic = !__traits(getProtection, __traits(getMember, *aggregate, member)).privateOrPackage;
+    else // static `member`
+	    enum bool isPublic = !__traits(getProtection, __traits(getMember, T, member)).privateOrPackage;
 }
 
 version(unittest)
 {
     final class ZipArchive
     {
-    public:
-        static const ushort zip64ExtractVersion = 45;
+	    public const ushort publicField;
+	    private const ushort privateField;
+	    public static const ushort publicStaticField = 45;
+	    private static const ushort privateStaticField = 42;
     }
 }
 
 ///
 version (mir_core_test) @nogc nothrow pure @safe version(mir_core_test) unittest
 {
-    static assert(!isPublic!(ZipArchive, "zip64ExtractVersion"));
+    static assert( isPublic!(ZipArchive, "publicField"));
+    static assert(!isPublic!(ZipArchive, "privateField"));
+    static assert( isPublic!(ZipArchive, "publicStaticField"));
+    static assert(!isPublic!(ZipArchive, "privateStaticField"));
 }
 
 // check if the member is property
