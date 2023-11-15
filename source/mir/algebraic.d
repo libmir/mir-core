@@ -728,7 +728,7 @@ Compatible with BetterC mode.
 alias Nullable(T...) = Variant!(typeof(null), T);
 
 /// ditto
-Nullable!T nullable(T)(T t)
+Nullable!T nullable(T)(return T t)
 {
     import core.lifetime: forward;
     return Nullable!T(forward!t);
@@ -2034,7 +2034,7 @@ struct Algebraic(T__...)
     private alias _ReflectionTypes = AllowedTypes[is(AllowedTypes[0] == typeof(null)) .. $];
 
     static if (_ReflectionTypes.length)
-    this(this This, Args...)(auto ref Args args)
+    this(this This, Args...)(auto ref return Args args)
         if (Args.length && (Args.length > 1 || !isLikeVariant!(Args[0])))
     {
         import std.traits: CopyTypeQualifiers;
@@ -2077,17 +2077,17 @@ struct Algebraic(T__...)
             else
             static if (allSatisfy!(ApplyRight!(templateOr!(hasField, isProperty), member), _ReflectionTypes))
             {
-                mixin(`auto ref ` ~ member ~q{(this This, Args...)(auto ref Args args) @property { static if (args.length) { import core.lifetime: forward; return this.getMember!member = forward!args; } else return this.getMember!member;  }});
+                mixin(`auto ref ` ~ member ~q{(this This, Args...)(auto ref return Args args) @property return { static if (args.length) { import core.lifetime: forward; return this.getMember!member = forward!args; } else return this.getMember!member;  }});
             }
             static if (allSatisfy!(ApplyRight!(templateNot!(templateOr!(hasField, isProperty)), member), _ReflectionTypes))
             {
-                mixin(`template ` ~ member ~`(TArgs...) { auto ref ` ~ member ~q{(this This, Args...)(auto ref Args args) { static if (args.length) { import core.lifetime: forward; return this.getMember!(member, TArgs)(forward!args); } else return this.getMember!(member, TArgs);  }} ~ `}`);
+                mixin(`template ` ~ member ~`(TArgs...) { auto ref ` ~ member ~q{(this This, Args...)(auto ref return Args args) return { static if (args.length) { import core.lifetime: forward; return this.getMember!(member, TArgs)(forward!args); } else return this.getMember!(member, TArgs);  }} ~ `}`);
             }
         }
     }
 
     ///
-    ref opAssign(RhsTypes...)(Algebraic!RhsTypes rhs) return @trusted
+    ref opAssign(RhsTypes...)(return Algebraic!RhsTypes rhs) return @trusted
         if (allSatisfy!(Contains!AllowedTypes, Algebraic!RhsTypes.AllowedTypes) && !is(Algebraic == Algebraic!RhsTypes))
     {
         import core.lifetime: forward;
@@ -2159,7 +2159,7 @@ struct Algebraic(T__...)
         {
             ///
             static if (isCopyable!(const T) || is(Unqual!T == T))
-            this(T value)
+            this(return T value)
             {
                 import core.lifetime: forward;
                 static if (is(T == typeof(null)))
@@ -2239,7 +2239,7 @@ struct Algebraic(T__...)
 
             static if (__traits(compiles, (ref T a, ref T b) { moveEmplace(a, b); }))
             ///
-            ref opAssign(T rhs) return @trusted
+            ref opAssign(return T rhs) return @trusted
             {
                 static foreach (T; MetaInfo__)
                     __traits(getMember, this, T.tag) = T.Type.init;
@@ -4140,6 +4140,25 @@ unittest
     );
 
     static assert(is(typeof(r) == Variant!(long, string)));
+}
+
+version(mir_core_test)
+@safe unittest
+{
+    // dip1000 memory corruption test
+    // https://issues.dlang.org/show_bug.cgi?id=24242
+    Variant!(void, long[]) gen() @safe {
+        Variant!(void, long[]) v = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
+        return v;
+    }
+
+    auto v = gen();
+    v.match!(
+        () { assert(false); },
+        (val) {
+            assert(val == [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
+        }
+    );
 }
 
 package auto trustedAllAttr(T)(scope T t) @trusted
