@@ -386,7 +386,7 @@ enum hasToHash(T) = __traits(hasMember, T, "toHash");
 static if (__VERSION__ < 2094)
     enum isCopyable(S) = is(typeof({ S foo = S.init; S copy = foo; }));
 else
-    enum isCopyable(S) = __traits(isCopyable, S); 
+    enum isCopyable(S) = __traits(isCopyable, S);
 enum isPOD(T) = __traits(isPOD, T);
 enum Sizeof(T) = T.sizeof;
 
@@ -408,18 +408,31 @@ enum hasSemiMutableConstruction(T) = __traits(compiles, {static struct S { T a; 
     static assert(hasInoutConstruction!S);
 }
 
-template staticIsSorted(alias cmp, Seq...)
-{
-    static if (Seq.length <= 1)
-        enum staticIsSorted = true;
-    else static if (Seq.length == 2)
-        enum staticIsSorted = cmp!(Seq[0], Seq[1]);
-    else
+static if (__VERSION__ >= 2098) {
+    enum staticIsSorted(alias cmp, items...) =
     {
-        enum staticIsSorted =
+        static if (items.length > 1)
+            static foreach (i, item; items[1 .. $])
+                static if (cmp!(items[i], item))
+                    if (__ctfe) return false;
+        return true;
+    }();
+}
+else
+{
+    template staticIsSorted(alias cmp, Seq...)
+    {
+        static if (Seq.length <= 1)
+            enum staticIsSorted = true;
+        else static if (Seq.length == 2)
+            enum staticIsSorted = cmp!(Seq[0], Seq[1]);
+        else
+        {
+            enum staticIsSorted =
             cmp!(Seq[($ / 2) - 1], Seq[$ / 2]) &&
             staticIsSorted!(cmp, Seq[0 .. $ / 2]) &&
             staticIsSorted!(cmp, Seq[$ / 2 .. $]);
+        }
     }
 }
 
