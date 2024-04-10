@@ -6,7 +6,7 @@ Authors: Ilia Ki
 +/
 module mir.conv;
 
-import mir.exception: toMutable;
+version (D_Exceptions) import mir.exception: toMutable;
 public import core.lifetime: emplace;
 
 import std.traits;
