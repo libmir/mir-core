@@ -11,7 +11,6 @@ import std.meta;
 import std.traits: Parameters, isSomeFunction, FunctionAttribute, functionAttributes, EnumMembers, isAggregateType;
 import mir.internal.meta: hasUDA, getUDAs;
 import mir.functional: Tuple;
-import mir.exception: toMutable;
 
 deprecated
 package alias isSomeStruct = isAggregateType;
