@@ -45,7 +45,7 @@ Error toMutable()(const Error e)
 }
 
 ///
-auto ref enforce(string fmt, string file = __FILE__, int line = __LINE__, Expr)(scope auto return ref Expr arg) @trusted
+auto ref enforce(string fmt, string file = __FILE__, int line = __LINE__, Expr)(scope auto ref return  Expr arg) @trusted
 {
     version(LDC) pragma(inline, true);
     import core.lifetime: forward;

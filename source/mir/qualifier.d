@@ -76,7 +76,7 @@ auto ref lightScope(T)(auto ref return scope T v)
 }
 
 /// ditto
-auto ref lightScope(T)(auto return ref T v)
+auto ref lightScope(T)(auto ref return T v)
     if (!is(T : P*, P) && !__traits(hasMember, T, "lightScope"))
 {
     static if (is(T == immutable))
