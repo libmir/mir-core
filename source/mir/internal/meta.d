@@ -116,7 +116,22 @@ template getUDAs(alias symbol, alias attribute)
     static if (AliasSeq!symbol.length != 1)
         alias getUDAs = AliasSeq!();
     else
-    static if (__traits(compiles, __traits(getAttributes, symbol)))
+    static if (__traits(compiles, __traits(getOverloads, symbol)))
+    {
+        alias overloads = __traits(getOverloads, symbol);
+        static if (overloads.length > 0)
+        {
+            alias getUDAsImpl(alias overload) = Filter!(isDesiredUDA!attribute, __traits(getAttributes, overload));
+            alias getUDAs = AliasSeq!(staticMap!(getUDAsImpl, overloads));
+        }
+        else static if (__traits(compiles, __traits(getAttributes, symbol)))
+        {
+            alias getUDAs = Filter!(isDesiredUDA!attribute, __traits(getAttributes, symbol));
+        }
+        else
+            alias getUDAs = AliasSeq!();
+    }
+    else static if (__traits(compiles, __traits(getAttributes, symbol)))
         alias getUDAs = Filter!(isDesiredUDA!attribute, __traits(getAttributes, symbol));
     else
         alias getUDAs = AliasSeq!();
@@ -243,8 +258,23 @@ private template isFunction(T, string member)
 
 private template autoGetUDAs(alias symbol)
 {
-    import std.meta : AliasSeq;
-    static if (__traits(compiles, __traits(getAttributes, symbol)))
+    import std.meta : AliasSeq, staticMap;
+    static if (__traits(compiles, __traits(getOverloads, symbol)))
+    {
+        alias overloads = __traits(getOverloads, symbol);
+        static if (overloads.length > 0)
+        {
+            alias autoGetUDAsImpl(alias overload) = __traits(getAttributes, overload);
+            alias autoGetUDAs = AliasSeq!(staticMap!(autoGetUDAsImpl, overloads));
+        }
+        else static if (__traits(compiles, __traits(getAttributes, symbol)))
+        {
+            alias autoGetUDAs = __traits(getAttributes, symbol);
+        }
+        else
+            alias autoGetUDAs = AliasSeq!();
+    }
+    else static if (__traits(compiles, __traits(getAttributes, symbol)))
         alias autoGetUDAs = __traits(getAttributes, symbol);
     else
         alias autoGetUDAs = AliasSeq!();
