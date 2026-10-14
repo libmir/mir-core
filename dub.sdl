@@ -10,6 +10,11 @@ buildType "unittest" {
     versions "mir_core_test"
 }
 
+buildType "unittest-cov" {
+    buildOptions "unittests" "coverage" "debugMode" "debugInfo"
+    versions "mir_core_test"
+}
+
 buildType "unittest-verbose" {
     buildOptions "unittests" "debugMode" "debugInfo"
     versions "mir_core_test"
