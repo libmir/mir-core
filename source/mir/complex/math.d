@@ -121,7 +121,162 @@ Complex!T log(T)(Complex!T x) @safe pure nothrow @nogc
             return Complex!T(-T.infinity, copysign(0.0, x.im));
     }
 
-    return Complex!T(log(cabs(x)), arg(x));
+    T logOnePlus(T value) @safe pure nothrow @nogc
+    {
+        import std.math.exponential: log1p;
+        if (__ctfe)
+        {
+            // log1p uses runtime intrinsics on some compilers. Here value is
+            // in [-0.75, 3.5], so the atanh series converges geometrically.
+            auto y = value / (2 + value);
+            auto square = y * y;
+            auto term = y;
+            auto sum = y;
+            foreach (i; 1 .. 2 * T.mant_dig)
+            {
+                term *= square;
+                auto next = sum + term / (2 * i + 1);
+                if (next == sum)
+                    break;
+                sum = next;
+            }
+            return 2 * sum;
+        }
+        return log1p(value);
+    }
+
+    auto a = fabs(x.re);
+    auto b = fabs(x.im);
+    auto large = a >= b ? a : b;
+    auto small = a >= b ? b : a;
+    T logMagnitude;
+    if (large >= T(0.5) && large <= T(1.5))
+    {
+        // Recover the rounding errors of the squares before subtracting one.
+        // Near the unit circle those errors can determine the result's sign.
+        real squareError(real v, real square) @safe pure nothrow @nogc
+        {
+            int precision = real.mant_dig;
+            if (__ctfe)
+            {
+                // CTFE can evaluate real with more precision than the target.
+                precision = 1;
+                real probe = 1;
+                while (1 + probe / 2 != 1)
+                {
+                    probe /= 2;
+                    ++precision;
+                }
+            }
+            real splitter = (1UL << ((precision + 1) / 2)) + 1.0L;
+            auto split = splitter * v;
+            auto high = split - (split - v);
+            auto low = v - high;
+            return ((high * high - square) + 2 * high * low) + low * low;
+        }
+        real sumError(real a, real b, real sum) @safe pure nothrow @nogc
+        {
+            auto part = sum - a;
+            return (a - (sum - part)) + (b - part);
+        }
+        real u = large, v = small;
+        auto uu = u * u;
+        auto vv = v * v;
+        auto difference = uu - 1;
+        auto sum = difference + vv;
+        auto correction = squareError(u, uu) + squareError(v, vv)
+            + sumError(uu, -1, difference) + sumError(difference, vv, sum);
+        T delta = cast(T) (sum + correction);
+        logMagnitude = T(0.5) * logOnePlus(delta);
+    }
+    else
+    {
+        // The magnitude itself may overflow or round a subnormal input.
+        auto ratio = small / large;
+        logMagnitude = log(large) + T(0.5) * logOnePlus(ratio * ratio);
+    }
+    return Complex!T(logMagnitude, arg(x));
+}
+
+@safe pure nothrow @nogc version(mir_core_test) unittest
+{
+    import mir.math.common: scalarLog = log, fabs;
+    import mir.math.constant: LN2, PI_4;
+    import std.meta: AliasSeq;
+
+    bool check(T)() @safe pure nothrow @nogc
+    {
+        // Scalar log may have only double precision during CTFE.
+        auto scalarEpsilon = __ctfe && T.mant_dig > double.mant_dig
+            ? T(double.epsilon) : T.epsilon;
+        foreach (v; [T.max, T.min_normal, T.min_normal * T.epsilon])
+        {
+            // The scalar log CTFE implementation may narrow real to double.
+            if (__ctfe && T.mant_dig > double.mant_dig)
+                continue;
+            auto result = log(Complex!T(v, v));
+            auto expected = scalarLog(v) + T(LN2 / 2);
+            assert(fabs(result.re - expected) <= 8 * T.epsilon * fabs(expected));
+            assert(fabs(result.im - T(PI_4)) <= 8 * T.epsilon);
+        }
+
+        // The magnitude rounds to one, but its logarithm is representable.
+        foreach (s; [T(-1), T(1)])
+        {
+            auto result = log(Complex!T(s, T(0x1p-30L)));
+            enum T expected = 0x1p-61L - 0x1p-122L;
+            assert(fabs(result.re - expected) <= 8 * T.epsilon * expected);
+            auto swapped = log(Complex!T(T(0x1p-30L), s));
+            assert(swapped.re == result.re);
+        }
+
+        // References use the exact binary inputs, not their decimal spellings.
+        static if (T.mant_dig == float.mant_dig)
+        {
+            enum T cancellationReal = 0x1.d54178p-1;
+            enum T cancellationImag = 0x1.99999ap-2;
+            enum T cancellationExpected = -2.24240004930311885077424941924e-8L;
+        }
+        else
+        {
+            enum T cancellationReal = 0x1.d54178e8830d5p-1L;
+            enum T cancellationImag = 0x1.999999999999ap-2L;
+            enum T cancellationExpected = -3.32132266633030497888746895455691260915599065e-18L;
+        }
+        foreach (reSign; [T(-1), T(1)])
+        foreach (imSign; [T(-1), T(1)])
+        {
+            auto result = log(Complex!T(reSign * cancellationReal, imSign * cancellationImag));
+            assert(fabs(result.re - cancellationExpected)
+                <= 32 * T.epsilon * fabs(cancellationExpected));
+            assert(log(Complex!T(imSign * cancellationImag, reSign * cancellationReal)).re
+                == result.re);
+        }
+
+        foreach (base; [T(0.5), T(1), T(1.5)])
+        {
+            T logBase = base == T(0.5) ? -T(LN2)
+                : base == 1 ? T(0) : T(0.405465108108164381978013115464349137L);
+            auto diagonal = log(Complex!T(base, base));
+            assert(fabs(diagonal.re - (logBase + T(LN2 / 2))) <= 8 * T.epsilon);
+            foreach (offset; [-T.epsilon, T(0), T.epsilon])
+            {
+                auto result = log(Complex!T(base + offset, 0));
+                T expected = logBase + offset / base;
+                assert(fabs(result.re - expected) <= 16 * scalarEpsilon * fabs(expected));
+            }
+        }
+        auto ordinary = log(Complex!T(3, 4));
+        assert(fabs(ordinary.re - T(1.60943791243410037460075933322618764L))
+            <= 8 * scalarEpsilon);
+        return true;
+    }
+
+    static foreach (T; AliasSeq!(float, double, real))
+    {
+        static assert(check!T());
+        assert(check!T());
+    }
 }
 
 ///
@@ -225,6 +380,10 @@ Complex!T exp(T)(Complex!T x) @trusted pure nothrow @nogc // TODO: @safe
     alias isNaN = x => x != x;
     alias isInfinity = x => x.fabs == T.infinity;
 
+    // Preserve the imaginary zero, even when the real exponential overflows.
+    if (x.im == 0)
+        return Complex!T(exp(x.re), x.im);
+
     // Handle special cases explicitly here, as fromPolar will otherwise
     // cause them to return Complex!T(NaN, NaN), or with the wrong sign.
     if (isInfinity(x.re))
@@ -243,30 +402,58 @@ Complex!T exp(T)(Complex!T x) @trusted pure nothrow @nogc // TODO: @safe
             else
                 return Complex!T(T.infinity, -T.nan);
         }
-        if (x.im == 0)
-        {
-            if (copysign(1, x.re) < 0)
-                return Complex!T(0);
-            else
-                return Complex!T(T.infinity);
-        }
     }
     if (isNaN(x.re))
     {
         if (isNaN(x.im) || isInfinity(x.im))
             return Complex!T(T.nan, T.nan);
-        if (x.im == 0)
-            return x;
     }
     if (x.re == 0)
     {
         if (isNaN(x.im) || isInfinity(x.im))
             return Complex!T(T.nan, T.nan);
-        if (x.im == 0)
-            return Complex!T(1, 0);
     }
 
     return fromPolar!T(exp(x.re), x.im);
+}
+
+@safe pure nothrow @nogc version(mir_core_test) unittest
+{
+    import mir.math.ieee: signbit;
+    import std.meta: AliasSeq;
+
+    static foreach (T; AliasSeq!(float, double, real))
+    {
+        static assert(is(typeof(exp(Complex!T(0, 0))) == Complex!T));
+    }
+
+    bool check(T)() @safe pure nothrow @nogc
+    {
+        foreach (im; [T(0.0), -T(0.0)])
+        {
+            foreach (re; [T(0.0), -T(0.0), T.infinity, -T.infinity,
+                          T.max, -T.max, T.nan])
+            {
+                auto result = exp(Complex!T(re, im));
+                assert(result.im == 0 && signbit(result.im) == signbit(im));
+                if (re != re)
+                    assert(result.re != result.re);
+                else if (re == 0)
+                    assert(result.re == 1);
+                else if (re > 0)
+                    assert(result.re == T.infinity);
+                else
+                    assert(result.re == 0 && !signbit(result.re));
+            }
+        }
+        return true;
+    }
+
+    static foreach (T; AliasSeq!(float, double, real))
+    {
+        static assert(check!T());
+        assert(check!T());
+    }
 }
 
 ///
