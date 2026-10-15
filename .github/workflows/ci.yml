@@ -24,11 +24,12 @@ jobs:
         os: [ubuntu-latest, windows-latest]
         arch: [x86, x86_64]
         include:
+          # The pinned setup-dlang action requires an x64 host.
           - dc: ldc-latest
-            os: macos-latest
+            os: macos-15-intel
             arch: x86_64
           - dc: dmd-latest
-            os: macos-latest
+            os: macos-15-intel
             arch: x86_64
     steps:
       - uses: actions/checkout@ec3a7ce113134d7a93b817d10a8272cb61118579
@@ -44,6 +45,6 @@ jobs:
           dub test --arch=$ARCH --build=unittest-cov
         shell: bash
       - id: coverage
-        uses: codecov/codecov-action@f32b3a3741e1053eb607407145bc9619351dc93b
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
     
         
