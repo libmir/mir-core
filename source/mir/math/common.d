@@ -126,7 +126,11 @@ enum
 
 version(LDC)
 {
-    import ldc.intrinsics: LLVM_version;
+    static import ldc.intrinsics;
+    static if (__traits(hasMember, ldc.intrinsics, "LLVM_major"))
+        import ldc.intrinsics: LLVM_major;
+    else
+        private enum LLVM_major = ldc.intrinsics.LLVM_version / 100;
     nothrow @nogc pure @safe:
 
     pragma(LDC_intrinsic, "llvm.sqrt.f#")
@@ -141,7 +145,7 @@ version(LDC)
     ///
     T cos(T)(in T val) if (isFloatingPoint!T);
 
-    static if (LLVM_version >= 1300)
+    static if (LLVM_major >= 13)
         pragma(LDC_intrinsic, "llvm.powi.f#.i32")
         ///
         T powi(T)(in T val, int power) if (isFloatingPoint!T);
