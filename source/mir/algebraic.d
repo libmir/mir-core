@@ -370,17 +370,27 @@ template TypeSet(T...)
     // sort types by sizeof and them mangleof
     // but typeof(null) goes first
     static if (is(staticMap!(TryRemoveConst, T) == T))
+	{
         static if (is(NoDuplicates!T == T))
+		{
             static if (staticIsSorted!(TypeCmp, T))
-            {
+			{
                 alias TypeSet = T;
-            }
+			}
             else
-                alias TypeSet = .TypeSet!(staticSort!(TypeCmp, T));
+			{
+                alias TypeSet = TypeSet!(staticSort!(TypeCmp, T));
+			}
+		}
         else
+		{
             alias TypeSet = TypeSet!(NoDuplicates!T);
+		}
+	}
     else
+	{
         alias TypeSet = TypeSet!(staticMap!(TryRemoveConst, T));
+	}
 }
 
 // IonNull goes first as well
