@@ -11,28 +11,36 @@ public import mir.complex;
 
 /++
 Params: z = A complex number.
-Returns: The square root of `z`.
+Returns: The principal square root of `z`, with a nonnegative real part
+    and an imaginary part with the same sign as `z.im`, including signed zero.
 +/
 Complex!T sqrt(T)(Complex!T z)  @safe pure nothrow @nogc
 {
-    import mir.math.common: fabs, fmin, fmax, sqrt;
+    import mir.math.common: fabs, fmin, fmax, sqrt, copysign;
 
-    if (z == 0)
-        return typeof(return)(0, 0);
+    if (z.re == 0 && z.im == 0)
+        return typeof(return)(0, z.im);
+
+    // Handle infinities before NaNs: an infinite imaginary component fixes
+    // both result magnitudes even when the real component is NaN.
+    if (z.im == T.infinity || z.im == -T.infinity)
+        return typeof(return)(T.infinity, z.im);
+    if (z.re == T.infinity)
+        return typeof(return)(T.infinity, z.im != z.im ? z.im : copysign(T(0), z.im));
+    if (z.re == -T.infinity)
+        return typeof(return)(z.im != z.im ? T.nan : T(0), copysign(T.infinity, z.im));
+    if (z.re != z.re || z.im != z.im)
+        return typeof(return)(T.nan, T.nan);
+
     auto x = fabs(z.re);
     auto y = fabs(z.im);
     auto n = fmin(x, y);
     auto m = fmax(x, y);
     auto r = n / m;
     auto w = sqrt(m) * sqrt(0.5f * ((x >= y ? 1 : r) + sqrt(1 + r * r)));
-    auto s = typeof(return)(w, z.im / (w + w));
     if (z.re < 0)
-    {
-        s = typeof(return)(s.im, s.re);
-        if (z.im < 0)
-            s = -s;
-    }
-    return s;
+        return typeof(return)(y / (w + w), copysign(w, z.im));
+    return typeof(return)(w, z.im / (w + w));
 }
 
 ///
@@ -48,6 +56,94 @@ Complex!T sqrt(T)(Complex!T z)  @safe pure nothrow @nogc
 {
     assert(complex(1.0, 1.0).sqrt.approxEqual(complex(1.098684113467809966, 0.455089860562227341)));
     assert(complex(0.5, 2.0).sqrt.approxEqual(complex(1.131713924277869410, 0.883615530875513265)));
+}
+
+// Branch-cut signs and nonfinite values have explicit expected results.
+version(mir_core_test)
+@safe pure nothrow @nogc unittest
+{
+    import std.meta: AliasSeq;
+    import std.math: signbit, isNaN, abs, isFinite;
+
+    pragma(inline, false)
+    static Complex!T runtimeSqrt(T)(Complex!T z) { return sqrt(z); }
+
+    static foreach (T; AliasSeq!(float, double, real))
+    {{
+        enum T[4][] cases = [
+            [T(0), T(0), T(0), T(0)],
+            [T(0), -T(0), T(0), -T(0)],
+            [-T(0), T(0), T(0), T(0)],
+            [-T(0), -T(0), T(0), -T(0)],
+            [T(-4), T(0), T(0), T(2)],
+            [T(-4), -T(0), T(0), T(-2)],
+            [T(4), -T(0), T(2), -T(0)],
+            [T(-8), T(-6), T(1), T(-3)],
+            [T(-8), T(6), T(1), T(3)],
+            [T.infinity, T(1), T.infinity, T(0)],
+            [T.infinity, T(-1), T.infinity, -T(0)],
+            [-T.infinity, T(1), T(0), T.infinity],
+            [-T.infinity, -T(0), T(0), -T.infinity],
+            [T(1), T.infinity, T.infinity, T.infinity],
+            [T(1), -T.infinity, T.infinity, -T.infinity],
+            [T.infinity, T.infinity, T.infinity, T.infinity],
+            [-T.infinity, -T.infinity, T.infinity, -T.infinity],
+            [T.nan, T.infinity, T.infinity, T.infinity],
+            [T.nan, -T.infinity, T.infinity, -T.infinity],
+            [T.infinity, T.nan, T.infinity, T.nan],
+            [-T.infinity, T.nan, T.nan, T.infinity],
+            [T.nan, T(0), T.nan, T.nan],
+            [T(0), T.nan, T.nan, T.nan],
+            [T.nan, T.nan, T.nan, T.nan]];
+
+        static foreach (entry; cases)
+        {{
+            auto actual = runtimeSqrt(Complex!T(entry[0], entry[1]));
+            enum evaluated = sqrt(Complex!T(entry[0], entry[1]));
+            static foreach (component; 0 .. 2)
+            {{
+                enum expected = entry[component + 2];
+                enum compileTime = component == 0 ? evaluated.re : evaluated.im;
+                auto value = component == 0 ? actual.re : actual.im;
+                static if (isNaN(expected))
+                {
+                    static assert(isNaN(compileTime));
+                    assert(isNaN(value));
+                }
+                else
+                {
+                    static if (expected == 0 || abs(expected) == T.infinity)
+                    {
+                        static assert(compileTime == expected);
+                        assert(value == expected);
+                    }
+                    else
+                    {
+                        static assert(abs(compileTime - expected) <= 8 * T.epsilon * abs(expected));
+                        assert(abs(value - expected) <= 8 * T.epsilon * abs(expected));
+                    }
+                    // The sign of a NaN input is unspecified.
+                    static if (!isNaN(entry[1]))
+                    {
+                        static assert(signbit(compileTime) == signbit(expected));
+                        assert(signbit(value) == signbit(expected));
+                    }
+                }
+            }}
+        }}
+
+        // Keep finite extreme magnitudes finite and check a tiny exact root.
+        auto large = runtimeSqrt(Complex!T(T.max, T.max));
+        assert(isFinite(large.re) && isFinite(large.im));
+        assert(large.re > 0 && large.im > 0);
+        auto tiny = runtimeSqrt(Complex!T(-T.min_normal, -T(0)));
+        import mir.math.common: realSqrt = sqrt;
+        assert(tiny.re == 0 && !signbit(tiny.re));
+        assert(tiny.im == -realSqrt(T.min_normal));
+        auto ordinary = runtimeSqrt(Complex!T(T(1), T(-1)));
+        assert(abs(ordinary.re - T(1.098684113467809966L)) <= 8 * T.epsilon);
+        assert(abs(ordinary.im - T(-0.455089860562227341L)) <= 8 * T.epsilon);
+    }}
 }
 
 /**
